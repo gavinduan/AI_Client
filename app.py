@@ -1,6 +1,10 @@
 import requests
 import json
 import threading
+import tiktoken
+
+# 初始化编码器
+encoder = tiktoken.get_encoding("cl100k_base")
 
 class ChatCLI:
 
@@ -84,7 +88,7 @@ class ChatCLI:
                                         first_token_time = current_time
                                     else:
                                         last_token_time = current_time
-                                    token_count += len(delta['content'].split())
+                                    token_count += len(encoder.encode(delta['content']))
                                     print(delta['content'], end='', flush=True)
                         except json.JSONDecodeError:
                             continue
@@ -96,12 +100,11 @@ class ChatCLI:
                 non_first_delay = (last_token_time - first_token_time) * 1000 if last_token_time and first_token_time else 0
                 non_first_tokens = max(token_count - 1, 0)
                 
-                print(f"输入长度\t{len(prompt)}")
-                print(f"输出长度\t{len(full_response)}")
+                print(f"输入token数\t{len(encoder.encode(prompt))}")
+                print(f"输出token数\t{token_count}")
                 print(f"总时长(s)\t{total_time:.2f}")
                 print(f"首token延迟(ms)\t{first_delay:.1f}")
                 print(f"非首token延迟(ms)\t{non_first_delay / non_first_tokens if non_first_tokens >0 else 0:.1f}")
-                print(f"非首token吞吐(Tokens/s)\t{non_first_tokens / (non_first_delay / 1000) if non_first_delay >0 else 0:.1f}")
                 print(f"吞吐(Tokens/s)\t{token_count / total_time:.1f}")
         except Exception as e:
             print(f'API错误: {str(e)}')

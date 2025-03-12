@@ -6,6 +6,10 @@ import time
 import psutil
 import requests
 import json
+import tiktoken
+
+# 初始化编码器
+encoder = tiktoken.get_encoding("cl100k_base")
 
 class ChatGUI(tk.Frame):
 
@@ -84,9 +88,10 @@ class ChatGUI(tk.Frame):
         self.append_history("用户", prompt)
         self.is_new_response = True
 
+        input_tokens = len(encoder.encode(prompt))
         threading.Thread(
             target=self.get_ai_response,
-            args=(prompt,),
+            args=(prompt, input_tokens),
             daemon=True
         ).start()
 
@@ -96,7 +101,7 @@ class ChatGUI(tk.Frame):
         self.history.see(tk.END)
         self.history.configure(state='disabled')
 
-    def get_ai_response(self, prompt):
+    def get_ai_response(self, prompt, input_tokens):
         self.total_requests += 1
         self.concurrent_requests += 1
         
@@ -137,6 +142,10 @@ class ChatGUI(tk.Frame):
                             try:
                                 data = json.loads(json_str)
                                 content = data['choices'][0]['delta'].get('content', '')
+                                # 优先获取API返回的usage数据
+                                if 'usage' in data:
+                                    api_prompt_tokens = data['usage'].get('prompt_tokens', input_tokens)
+                                    api_output_tokens = data['usage'].get('completion_tokens', 0)
                                 full_response += content
                                 current_time = time.time()
                                 
@@ -145,7 +154,7 @@ class ChatGUI(tk.Frame):
                                 else:
                                     last_token_time = current_time
                                 
-                                token_count += len(content.split())
+                                token_count += len(encoder.encode(content))
                                 self.history.after(0, self.update_stream, content)
                                 self.history.after(0, self.history.see, tk.END)
                                 # 流式处理结束后更新统计
@@ -155,12 +164,13 @@ class ChatGUI(tk.Frame):
                                     non_first_delay = (last_token_time - first_token_time) * 1000 if last_token_time and first_token_time else 0
                                     non_first_tokens = max(token_count - 1, 0)
                                     
-                                    avg_non_first_delay = non_first_delay / non_first_tokens if non_first_tokens > 0 else 0
+                                    # 更新统计时优先使用API返回的数据
                                     stats = (
+                                        f"输入token: {api_prompt_tokens if 'api_prompt_tokens' in locals() else input_tokens} | "
+                                        f"输出token: {api_output_tokens if 'api_output_tokens' in locals() else token_count} | "
                                         f"首token: {first_delay:.1f}ms | "
-                                        f"平均非首: {avg_non_first_delay:.1f}ms | "
-                                        f"吞吐: {token_count / total_time:.1f}t/s | "
-                                        f"长度: {len(full_response)}"
+                                        f"平均非首: {non_first_delay / non_first_tokens if non_first_tokens >0 else 0:.1f}ms | "
+                                        f"吞吐: {(api_output_tokens if 'api_output_tokens' in locals() else token_count) / total_time:.1f}t/s"
                                     )
                                     self.history.after(0, lambda: self.status_bar.config(text=stats))
                             except Exception as e:
