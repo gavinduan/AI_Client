@@ -324,7 +324,7 @@ class SettingsWindow(tk.Toplevel):
             
             # 保存到文件
             with open("config.json", "w", encoding="utf-8") as f:
-                json.dump(new_config, f, indent=2)
+                json.dump(new_config, f, indent=2, ensure_ascii=False)
             
             # 更新主界面配置
             self.master.config = new_config

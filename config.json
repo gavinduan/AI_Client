@@ -7,5 +7,5 @@
   "stop": [],
   "top_p": 1.0,
   "seed": null,
-  "system_prompt": "\u4f60\u662f\u4e00\u4e2a\u6709\u7528\u7684AI"
+  "system_prompt": "你是一个有用的AI"
 }
